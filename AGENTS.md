@@ -44,8 +44,9 @@ docker compose exec frontend npm run build
 
 - Antes de trabajar en el frontend, lee `./.agents/rules/frontend.md`.
 - Antes de trabajar en el backend, lee `./.agents/rules/backend.md`.
-- Consulta las skills en `./.agents/skills` y la memoria en `./memory-bank` si esas rutas existen.
+- Consulta `./memory-bank/product.md`, `./memory-bank/techContext.md` y `./memory-bank/progress.md` antes de trabajar, si existen; consulta también las skills en `./.agents/skills` si esa ruta existe.
 - Al cambiar cálculos, tipos o respuestas de API, revisa y actualiza sus pruebas correspondientes.
+- Después de cada nueva implementación, actualiza los archivos pertinentes de `./memory-bank`: producto si cambia su comportamiento, contexto técnico si cambia arquitectura o integración, y progreso para reflejar lo implementado y las limitaciones vigentes. Registra solo información verificada y no afirmes que se ejecutaron pruebas si no fue así.
 - No describas como persistentes los datos generados por las rutas revisadas: no se observa almacenamiento persistente en ese flujo.
 
 ## Límites
