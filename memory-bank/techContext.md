@@ -25,7 +25,7 @@
 
 - Un movimiento tiene fecha, importe, tipo (`income` o `outcome`), categoría y tipo de negocio (`B2B` o `B2C`). Los tipos están en [frontend/src/lib/financial-types.ts](../frontend/src/lib/financial-types.ts) y los modelos de API en [backend/app/routes.py](../backend/app/routes.py).
 - El frontend calcula ingresos y gastos totales, beneficio (`ingresos - gastos`) y porcentaje de beneficio (`beneficio / ingresos`, o `0` si no hay ingresos); también agrupa movimientos por mes. [frontend/src/lib/financial-utils.ts](../frontend/src/lib/financial-utils.ts)
-- El backend genera movimientos sintéticos con semilla fija. El año se asigna usando la fecha actual y la generación llama a `random.seed`, que modifica el estado aleatorio global. En las rutas revisadas no aparece almacenamiento persistente. [backend/app/routes.py](../backend/app/routes.py)
+- El backend genera movimientos sintéticos con un generador aleatorio local. Los resultados con semilla se cachean por fecha y semilla, con copias independientes para cada llamada; el año sigue dependiendo de la fecha actual. En las rutas revisadas no aparece almacenamiento persistente. [backend/app/routes.py](../backend/app/routes.py)
 
 ## Comandos y verificaciones
 

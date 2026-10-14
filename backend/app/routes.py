@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 from collections import defaultdict
 from datetime import date, timedelta
+from functools import lru_cache
 from typing import Literal
 
 from fastapi import APIRouter, Query
@@ -68,19 +69,24 @@ def _year_for_month(month: int, today: date) -> int:
     return today.year - 1
 
 
-def _build_movement(month: int, income_probability: float, today: date) -> FinancialMovement:
-    operation_type: OperationType = "income" if random.random(
+def _build_movement(
+    month: int,
+    income_probability: float,
+    today: date,
+    rng: random.Random,
+) -> FinancialMovement:
+    operation_type: OperationType = "income" if rng.random(
     ) < income_probability else "outcome"
-    movement_day = random.randint(1, 28)
+    movement_day = rng.randint(1, 28)
     movement_date = date(_year_for_month(month, today), month, movement_day)
-    business_type: BusinessType = "B2B" if random.random() < 0.55 else "B2C"
+    business_type: BusinessType = "B2B" if rng.random() < 0.55 else "B2C"
 
     if operation_type == "income":
-        category: Category = "sales" if random.random() < 0.9 else "others"
-        amount = round(random.uniform(800, 12000), 2)
+        category: Category = "sales" if rng.random() < 0.9 else "others"
+        amount = round(rng.uniform(800, 12000), 2)
     else:
-        category = random.choice(OUTCOME_CATEGORIES)
-        amount = round(random.uniform(500, 9000), 2)
+        category = rng.choice(OUTCOME_CATEGORIES)
+        amount = round(rng.uniform(500, 9000), 2)
 
     return FinancialMovement(
         create_date=movement_date,
@@ -91,17 +97,36 @@ def _build_movement(month: int, income_probability: float, today: date) -> Finan
     )
 
 
-def generate_mock_movements(seed: int | None = None) -> list[FinancialMovement]:
-    if seed is not None:
-        random.seed(seed)
-    today = date.today()
+def _generate_mock_movements(seed: int | None, today: date) -> list[FinancialMovement]:
+    rng = random.Random(seed)
     movements: list[FinancialMovement] = []
     for month in range(1, 13):
-        income_probability = random.uniform(0.45, 0.7)
+        income_probability = rng.uniform(0.45, 0.7)
         for _ in range(30):
-            movements.append(_build_movement(month, income_probability, today))
+            movements.append(_build_movement(month, income_probability, today, rng))
     movements.sort(key=lambda item: item.create_date)
     return movements
+
+
+@lru_cache(maxsize=8)
+def _cached_mock_movements(
+    seed: int,
+    today: date,
+) -> tuple[dict[str, object], ...]:
+    return tuple(
+        movement.model_dump()
+        for movement in _generate_mock_movements(seed, today)
+    )
+
+
+def generate_mock_movements(seed: int | None = None) -> list[FinancialMovement]:
+    today = date.today()
+    if seed is None:
+        return _generate_mock_movements(seed, today)
+    return [
+        FinancialMovement(**movement)
+        for movement in _cached_mock_movements(seed, today)
+    ]
 
 
 def filter_movements_by_date(
@@ -256,7 +281,7 @@ def get_metrics(
     filtered = filter_movements(
         movements, start_date, end_date, category, operation_type
     )
-    return ensure_chronological_order(filtered)
+    return filtered
 
 
 @router.get("/api/metrics/facets", response_model=MetricsFacets)
@@ -372,7 +397,7 @@ def get_b2b_metrics(
     filtered = filter_movements(
         movements, start_date, end_date, category, operation_type
     )
-    return ensure_chronological_order(filtered)
+    return filtered
 
 
 @router.get("/api/metrics/b2c", response_model=list[FinancialMovement])
@@ -388,4 +413,4 @@ def get_b2c_metrics(
     filtered = filter_movements(
         movements, start_date, end_date, category, operation_type
     )
-    return ensure_chronological_order(filtered)
+    return filtered
