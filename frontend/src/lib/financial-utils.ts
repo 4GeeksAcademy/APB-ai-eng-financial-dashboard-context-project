@@ -18,24 +18,11 @@ function formatMonthYearLabel(yearMonthKey: string): string {
   });
 }
 
-export function computeKPIs(movements: FinancialMovement[]): KPIMetrics {
-  const totalIncome = movements
-    .filter((m) => m.operation_type === "income")
-    .reduce((sum, m) => sum + m.amount, 0);
-
-  const totalOutcome = movements
-    .filter((m) => m.operation_type === "outcome")
-    .reduce((sum, m) => sum + m.amount, 0);
-
-  const profit = totalIncome - totalOutcome;
-  const profitPercent = totalIncome > 0 ? (profit / totalIncome) * 100 : 0;
-
-  return { totalIncome, totalOutcome, profit, profitPercent };
-}
-
-export function computeMonthlyData(
+export function computeFinancialDashboard(
   movements: FinancialMovement[],
-): MonthlyDataPoint[] {
+): { metrics: KPIMetrics; monthlyData: MonthlyDataPoint[] } {
+  let totalIncome = 0;
+  let totalOutcome = 0;
   const monthlyMap: Record<string, { income: number; outcome: number }> = {};
 
   for (const m of movements) {
@@ -45,13 +32,15 @@ export function computeMonthlyData(
     }
 
     if (m.operation_type === "income") {
+      totalIncome += m.amount;
       monthlyMap[yearMonthKey].income += m.amount;
     } else {
+      totalOutcome += m.amount;
       monthlyMap[yearMonthKey].outcome += m.amount;
     }
   }
 
-  return Object.keys(monthlyMap)
+  const monthlyData = Object.keys(monthlyMap)
     .sort()
     .map((yearMonthKey) => {
       const { income, outcome } = monthlyMap[yearMonthKey];
@@ -64,6 +53,24 @@ export function computeMonthlyData(
         profitPercent,
       };
     });
+
+  const profit = totalIncome - totalOutcome;
+  const profitPercent = totalIncome > 0 ? (profit / totalIncome) * 100 : 0;
+
+  return {
+    metrics: { totalIncome, totalOutcome, profit, profitPercent },
+    monthlyData,
+  };
+}
+
+export function computeKPIs(movements: FinancialMovement[]): KPIMetrics {
+  return computeFinancialDashboard(movements).metrics;
+}
+
+export function computeMonthlyData(
+  movements: FinancialMovement[],
+): MonthlyDataPoint[] {
+  return computeFinancialDashboard(movements).monthlyData;
 }
 
 export function formatCurrency(value: number): string {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  computeFinancialDashboard,
   computeKPIs,
   computeMonthlyData,
   formatCurrency,
@@ -31,6 +32,22 @@ const sampleMovements: FinancialMovement[] = [
     business_type: "B2C",
   },
 ];
+
+describe("computeFinancialDashboard", () => {
+  it("returns KPI metrics and monthly aggregates together", () => {
+    const result = computeFinancialDashboard(sampleMovements);
+
+    expect(result.metrics.totalIncome).toBe(1500);
+    expect(result.metrics.totalOutcome).toBe(250);
+    expect(result.monthlyData).toHaveLength(2);
+    expect(result.monthlyData[0]).toEqual({
+      month: "Jan 2024",
+      income: 1000,
+      outcome: 250,
+      profitPercent: 75,
+    });
+  });
+});
 
 describe("computeKPIs", () => {
   it("calculates totals and profit values", () => {
