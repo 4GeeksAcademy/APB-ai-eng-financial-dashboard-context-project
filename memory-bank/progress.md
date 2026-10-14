@@ -2,6 +2,13 @@
 
 Resumen basado en revisión del código. La suite backend pasó: 17 pruebas. El perfil de 1.000 generaciones bajó de 4,74 s a 1,44 s bajo `cProfile`; es una medición orientativa con el coste del profiler incluido. No se ejecutaron verificaciones frontend.
 
+## Skills y cambios recientes
+
+- Skill aplicada: `python-performance-optimization`. Se midió la generación antes de optimizar; el generador usa un `Random` local, la caché está limitada por fecha y semilla, y cada llamada recibe modelos independientes. También se eliminaron ordenaciones redundantes tras filtros que preservan el orden. [backend/app/routes.py](../backend/app/routes.py)
+- Verificación: `docker compose run --rm backend pytest -q` pasó con 17 pruebas. El perfil de 1.000 llamadas pasó de 4,74 s a 1,44 s bajo `cProfile`; es una medición orientativa, no una garantía de latencia de producción. `git diff --check` no reportó errores.
+- Skill del ecosistema elegida y creada: [financial-dashboard-workflow](../.agents/skills/financial-dashboard-workflow/SKILL.md). Complementa las skills existentes de rendimiento Python, accesibilidad y React con reglas transversales del dominio financiero.
+- Motivo: los cambios del dashboard suelen cruzar cálculos, tipos frontend, modelos y respuestas FastAPI, período mostrado y pruebas. La skill fija ese flujo y las invariantes financieras sin imponer cambios de diseño ni duplicar las instrucciones generales de `AGENTS.md`.
+
 ## Lo que funciona según el código
 
 - El frontend solicita `GET /api/metrics`, calcula totales de ingresos y gastos, beneficio, porcentaje de beneficio y agregados mensuales; muestra KPI y gráficos. [frontend/src/App.tsx](../frontend/src/App.tsx), [frontend/src/lib/financial-utils.ts](../frontend/src/lib/financial-utils.ts)
