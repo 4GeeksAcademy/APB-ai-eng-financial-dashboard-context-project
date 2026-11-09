@@ -17,9 +17,9 @@
 
 - Vite publica el frontend en el puerto `5173` y redirige `/api` a `http://backend:8000`; dentro de Compose se usa el nombre del servicio, no `localhost`. [frontend/vite.config.ts](../frontend/vite.config.ts), [docker-compose.yml](../docker-compose.yml)
 - El backend publica el puerto `8000`; el contenedor también expone `5678` para debugpy. [backend/Dockerfile](../backend/Dockerfile), [docker-compose.yml](../docker-compose.yml)
-- El frontend solicita `/api/metrics` usando `VITE_API_BASE_URL` si está definido; por defecto usa la ruta relativa y el proxy de Vite. [frontend/src/App.tsx](../frontend/src/App.tsx)
+- El frontend solicita `/api/metrics/facets` y `/api/metrics`, con `start_date` y `end_date` opcionales, usando `VITE_API_BASE_URL` si está definido; por defecto usa la ruta relativa y el proxy de Vite. Cancela peticiones obsoletas al cambiar las fechas. [frontend/src/App.tsx](../frontend/src/App.tsx)
 - La API incluye `/health`, `/api/metrics` y rutas adicionales para facets, resúmenes, categorías, comparaciones, alertas y segmentación B2B/B2C. `/api/metrics` admite filtros de fecha, categoría y tipo de operación. [backend/app/routes.py](../backend/app/routes.py)
-- Aunque el backend admite filtros, el dashboard actual solicita `/api/metrics` sin parámetros. [frontend/src/App.tsx](../frontend/src/App.tsx)
+- El dashboard consume los filtros de fecha existentes y omite los parametros vacios; sin fechas solicita todo el historico. [frontend/src/App.tsx](../frontend/src/App.tsx)
 
 ## Dominio y datos
 
@@ -43,6 +43,6 @@ Los scripts frontend están definidos en [frontend/package.json](../frontend/pac
 
 ## Límites y riesgos conocidos
 
-- El encabezado del dashboard está fijado en 2024, pero las fechas de los datos dependen de la fecha actual; el período mostrado puede no coincidir con los datos. [frontend/src/App.tsx](../frontend/src/App.tsx), [backend/app/routes.py](../backend/app/routes.py)
+- El periodo del encabezado se actualiza al cargar los datos de una consulta valida y se conserva si la seleccion es invalida. Las fechas del dataset sintetico siguen dependiendo de la fecha actual. [frontend/src/App.tsx](../frontend/src/App.tsx), [backend/app/routes.py](../backend/app/routes.py)
 - Compose usa `depends_on` sin healthcheck del backend, mientras el frontend hace una petición inicial sin reintento automático. [docker-compose.yml](../docker-compose.yml), [frontend/src/App.tsx](../frontend/src/App.tsx)
 - No asumir persistencia, autenticación ni integraciones externas a partir del flujo revisado.
