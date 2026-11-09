@@ -1,5 +1,20 @@
 # Contexto técnico
 
+## Integracion de comparativa
+
+- `/api/metrics/facets` admite `business_type`, `operation_type`, `start_date` y `end_date` opcionales. Filtra opciones por esos parametros y conserva `min_date`/`max_date` globales, incluso con categorias vacias. La respuesta sin filtros mantiene el contrato anterior.
+- La comparativa reutiliza `/categories/top?operation_type=income&limit=5` y `/summary` por grupo. Ejecuta las seis consultas en paralelo con cancelacion y actualiza ambos grupos juntos.
+- `computeBusinessComparison` calcula porcentajes sobre todos los ingresos del resumen, no sobre las filas visibles. `getDateRangeError` se comparte con el dashboard sin cambiar su comportamiento.
+- La navegacion usa estado React; no se introdujo router ni dependencias. El dashboard permanece montado y oculto durante la comparativa; esta mantiene sus propias fechas. La cabecera admite titulo, subtitulo y prefijo de IDs.
+- Componentes nuevos: `business-comparison-page.tsx`, `business-income-table.tsx` y `business-income-chart.tsx`. El grafico usa Recharts y los formateadores existentes.
+
+## Integracion de alertas
+
+- `GET /api/metrics/alerts` mantiene su modelo de respuesta y valida `threshold` entre 0.1 y 1.0, con 0.3 por defecto. La agrupacion mensual usa tres meses calendario anteriores completos como referencia; las agrupaciones diaria y semanal conservan su calculo previo.
+- `App.tsx` solicita alertas por umbral y fechas validas de forma independiente de las metricas. Cancela peticiones obsoletas; valores de umbral fuera de rango no se aplican y fechas invalidas conservan los resultados.
+- `anomaly-alerts-table.tsx` presenta controles etiquetados, tabla semantica, estados de carga/error y ausencia de alertas. Reutiliza `formatCurrency` y `formatPercent`, convirtiendo el ratio recibido a porcentaje.
+- Sin dependencias ni frameworks nuevos. Los datos siguen siendo sinteticos y no persistidos.
+
 ## Stack
 
 - **Frontend:** React 19 y TypeScript 6 con Vite 8; Tailwind CSS, Recharts, Vitest y ESLint. Scripts y dependencias: [frontend/package.json](../frontend/package.json).
@@ -17,9 +32,9 @@
 
 - Vite publica el frontend en el puerto `5173` y redirige `/api` a `http://backend:8000`; dentro de Compose se usa el nombre del servicio, no `localhost`. [frontend/vite.config.ts](../frontend/vite.config.ts), [docker-compose.yml](../docker-compose.yml)
 - El backend publica el puerto `8000`; el contenedor también expone `5678` para debugpy. [backend/Dockerfile](../backend/Dockerfile), [docker-compose.yml](../docker-compose.yml)
-- El frontend solicita `/api/metrics` usando `VITE_API_BASE_URL` si está definido; por defecto usa la ruta relativa y el proxy de Vite. [frontend/src/App.tsx](../frontend/src/App.tsx)
+- El frontend solicita `/api/metrics/facets` y `/api/metrics`, con `start_date` y `end_date` opcionales, usando `VITE_API_BASE_URL` si está definido; por defecto usa la ruta relativa y el proxy de Vite. Cancela peticiones obsoletas al cambiar las fechas. [frontend/src/App.tsx](../frontend/src/App.tsx)
 - La API incluye `/health`, `/api/metrics` y rutas adicionales para facets, resúmenes, categorías, comparaciones, alertas y segmentación B2B/B2C. `/api/metrics` admite filtros de fecha, categoría y tipo de operación. [backend/app/routes.py](../backend/app/routes.py)
-- Aunque el backend admite filtros, el dashboard actual solicita `/api/metrics` sin parámetros. [frontend/src/App.tsx](../frontend/src/App.tsx)
+- El dashboard consume los filtros de fecha existentes y omite los parametros vacios; sin fechas solicita todo el historico. [frontend/src/App.tsx](../frontend/src/App.tsx)
 
 ## Dominio y datos
 
@@ -43,6 +58,6 @@ Los scripts frontend están definidos en [frontend/package.json](../frontend/pac
 
 ## Límites y riesgos conocidos
 
-- El encabezado del dashboard está fijado en 2024, pero las fechas de los datos dependen de la fecha actual; el período mostrado puede no coincidir con los datos. [frontend/src/App.tsx](../frontend/src/App.tsx), [backend/app/routes.py](../backend/app/routes.py)
+- El periodo del encabezado se actualiza al cargar los datos de una consulta valida y se conserva si la seleccion es invalida. Las fechas del dataset sintetico siguen dependiendo de la fecha actual. [frontend/src/App.tsx](../frontend/src/App.tsx), [backend/app/routes.py](../backend/app/routes.py)
 - Compose usa `depends_on` sin healthcheck del backend, mientras el frontend hace una petición inicial sin reintento automático. [docker-compose.yml](../docker-compose.yml), [frontend/src/App.tsx](../frontend/src/App.tsx)
 - No asumir persistencia, autenticación ni integraciones externas a partir del flujo revisado.

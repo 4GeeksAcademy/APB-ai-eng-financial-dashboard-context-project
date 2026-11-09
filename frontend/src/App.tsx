@@ -1,14 +1,19 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { ChartColumn, LayoutDashboard } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { AnomalyAlertsTable } from "@/components/dashboard/anomaly-alerts-table";
+import { BusinessComparisonPage } from "@/components/dashboard/business-comparison-page";
 import { KPIRow } from "@/components/dashboard/kpi-row";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   type FinancialMovement,
   type KPIMetrics,
+  type MetricsAlert,
+  type MetricsFacets,
   type MonthlyDataPoint,
 } from "@/lib/financial-types";
-import { computeFinancialDashboard } from "@/lib/financial-utils";
+import { computeFinancialDashboard, getDateRangeError } from "@/lib/financial-utils";
 
 const IncomeOutcomeChart = lazy(() =>
   import("@/components/dashboard/income-outcome-chart").then((module) => ({
@@ -22,23 +27,48 @@ const ProfitPercentChart = lazy(() =>
 );
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-let financialDataRequest: Promise<FinancialMovement[]> | undefined;
 
-function fetchFinancialData(): Promise<FinancialMovement[]> {
-  if (!financialDataRequest) {
-    financialDataRequest = fetch(`${API_BASE_URL}/api/metrics`)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Failed to fetch financial data: ${response.status}`);
-        }
-        return response.json() as Promise<FinancialMovement[]>;
-      })
-      .catch((error: unknown) => {
-        financialDataRequest = undefined;
-        throw error;
-      });
-  }
-  return financialDataRequest;
+function fetchFinancialData(
+  startDate: string,
+  endDate: string,
+  signal: AbortSignal,
+): Promise<FinancialMovement[]> {
+  const params = new URLSearchParams();
+  if (startDate) params.set("start_date", startDate);
+  if (endDate) params.set("end_date", endDate);
+  const query = params.size ? `?${params}` : "";
+
+  return fetch(`${API_BASE_URL}/api/metrics${query}`, { signal }).then(
+    (response) => {
+      if (!response.ok) {
+        throw new Error(`Failed to fetch financial data: ${response.status}`);
+      }
+      return response.json() as Promise<FinancialMovement[]>;
+    },
+  );
+}
+
+function fetchFinancialAlerts(
+  startDate: string,
+  endDate: string,
+  threshold: number,
+  signal: AbortSignal,
+): Promise<MetricsAlert[]> {
+  const params = new URLSearchParams({
+    threshold: String(threshold),
+    group_by: "month",
+  });
+  if (startDate) params.set("start_date", startDate);
+  if (endDate) params.set("end_date", endDate);
+
+  return fetch(`${API_BASE_URL}/api/metrics/alerts?${params}`, { signal }).then(
+    (response) => {
+      if (!response.ok) {
+        throw new Error(`Failed to fetch alerts: ${response.status}`);
+      }
+      return response.json() as Promise<MetricsAlert[]>;
+    },
+  );
 }
 
 function ChartLoadingFallback() {
@@ -56,20 +86,91 @@ function ChartLoadingFallback() {
 }
 
 function App() {
+  const [view, setView] = useState<"dashboard" | "comparison">("dashboard");
   const [metrics, setMetrics] = useState<KPIMetrics | null>(null);
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [facets, setFacets] = useState<MetricsFacets | null>(null);
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
+  const [period, setPeriod] = useState("");
+  const [alerts, setAlerts] = useState<MetricsAlert[]>([]);
+  const [threshold, setThreshold] = useState(0.3);
+  const [thresholdInput, setThresholdInput] = useState("0.3");
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
+  const numericThreshold = Number(thresholdInput);
+  const thresholdIsValid = thresholdInput.trim() !== "" &&
+    Number.isFinite(numericThreshold) && numericThreshold >= 0.1 && numericThreshold <= 1;
+  const thresholdError = thresholdIsValid ? null : "Introduce un umbral entre 0.1 y 1.0.";
+  const dateError = facets
+    ? getDateRangeError(dateRange.startDate, dateRange.endDate, facets)
+    : null;
+
+  function handleDateChange(field: "startDate" | "endDate", value: string) {
+    const nextRange = { ...dateRange, [field]: value };
+    setDateRange(nextRange);
+    const isValid = facets !== null &&
+      !getDateRangeError(nextRange.startDate, nextRange.endDate, facets);
+    setLoading(isValid);
+    setAlertsLoading(isValid);
+    setError(null);
+    setAlertsError(null);
+  }
+
+  function handleThresholdChange(value: string) {
+    setThresholdInput(value);
+    const nextThreshold = Number(value);
+    if (
+      value.trim() === "" || !Number.isFinite(nextThreshold) ||
+      nextThreshold < 0.1 || nextThreshold > 1 || nextThreshold === threshold
+    ) return;
+    setThreshold(nextThreshold);
+    setAlertsLoading(Boolean(facets) && !dateError);
+    setAlertsError(null);
+  }
 
   useEffect(() => {
     let isActive = true;
+    const controller = new AbortController();
 
-    fetchFinancialData()
+    fetch(`${API_BASE_URL}/api/metrics/facets`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to fetch date range: ${response.status}`);
+        }
+        return response.json() as Promise<MetricsFacets>;
+      })
+      .then((availableFacets) => {
+        if (isActive) setFacets(availableFacets);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setError("No se pudo cargar el rango de fechas disponible.");
+        setLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!facets || dateError) return;
+    let isActive = true;
+    const controller = new AbortController();
+
+    fetchFinancialData(dateRange.startDate, dateRange.endDate, controller.signal)
       .then((movements) => {
         if (!isActive) return;
         const dashboardData = computeFinancialDashboard(movements);
         setMetrics(dashboardData.metrics);
         setMonthlyData(dashboardData.monthlyData);
+        setPeriod(
+          `${dateRange.startDate || facets.min_date} a ${dateRange.endDate || facets.max_date}`,
+        );
+        setError(null);
       })
       .catch(() => {
         if (!isActive) return;
@@ -83,8 +184,38 @@ function App() {
 
     return () => {
       isActive = false;
+      controller.abort();
     };
-  }, []);
+  }, [dateRange, facets, dateError]);
+
+  useEffect(() => {
+    if (!facets || dateError) return;
+    let isActive = true;
+    const controller = new AbortController();
+
+    fetchFinancialAlerts(
+      dateRange.startDate,
+      dateRange.endDate,
+      threshold,
+      controller.signal,
+    )
+      .then((result) => {
+        if (!isActive) return;
+        setAlerts(result);
+        setAlertsError(null);
+      })
+      .catch(() => {
+        if (isActive) setAlertsError("No se pudieron cargar las alertas de gasto.");
+      })
+      .finally(() => {
+        if (isActive) setAlertsLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [dateRange, facets, dateError, threshold]);
 
   return (
     <>
@@ -92,12 +223,50 @@ function App() {
         {loading ? "Loading financial data" : ""}
       </p>
       <main
-        aria-busy={loading}
+        aria-busy={view === "dashboard" && loading}
         className="dark min-h-screen bg-background text-foreground"
       >
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-8">
-            <DashboardHeader period="2024 - Full Year" />
+            <nav aria-label="Vistas del dashboard" className="flex flex-wrap gap-2 border-b border-border pb-3">
+              <button
+                type="button"
+                aria-pressed={view === "dashboard"}
+                onClick={() => setView("dashboard")}
+                className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm aria-pressed:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <LayoutDashboard size={16} aria-hidden="true" /> Dashboard
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "comparison"}
+                onClick={() => setView("comparison")}
+                className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm aria-pressed:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <ChartColumn size={16} aria-hidden="true" /> B2B vs B2C
+              </button>
+            </nav>
+            <div hidden={view !== "dashboard"}>
+              <div className="flex flex-col gap-8">
+            <DashboardHeader
+              period={period}
+              startDate={dateRange.startDate}
+              endDate={dateRange.endDate}
+              minDate={facets?.min_date}
+              maxDate={facets?.max_date}
+              dateError={dateError}
+              onDateChange={handleDateChange}
+            />
+
+            {!dateRange.startDate && !dateRange.endDate ? (
+              <p
+                lang="es"
+                role="status"
+                className="rounded-md border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-200"
+              >
+                No se seleccionaron fechas, se muestra data histórica
+              </p>
+            ) : null}
 
             {error ? (
               <div
@@ -124,6 +293,20 @@ function App() {
                 <ProfitPercentChart data={monthlyData} loading={loading} />
               </Suspense>
             </section>
+
+            <AnomalyAlertsTable
+              alerts={alerts}
+              loading={alertsLoading}
+              error={alertsError ?? (!facets ? error : null)}
+              thresholdValue={thresholdInput}
+              thresholdError={thresholdError}
+              onThresholdChange={handleThresholdChange}
+            />
+              </div>
+            </div>
+            {view === "comparison" ? (
+              <BusinessComparisonPage facets={facets} facetsError={!facets ? error : null} />
+            ) : null}
           </div>
         </div>
     </main>

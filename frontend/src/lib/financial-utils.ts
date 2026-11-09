@@ -1,7 +1,13 @@
 import {
+  type BusinessComparison,
+  type BusinessType,
+  type Category,
   type FinancialMovement,
   type KPIMetrics,
+  type MetricsFacets,
+  type MetricsSummaryItem,
   type MonthlyDataPoint,
+  type TopCategoryItem,
 } from "./financial-types";
 
 function toYearMonthKey(value: Date): string {
@@ -71,6 +77,54 @@ export function computeMonthlyData(
   movements: FinancialMovement[],
 ): MonthlyDataPoint[] {
   return computeFinancialDashboard(movements).monthlyData;
+}
+
+export function computeBusinessComparison(
+  businessType: BusinessType,
+  ranking: TopCategoryItem[],
+  summary: MetricsSummaryItem[],
+  availableCategories: Category[],
+): BusinessComparison {
+  const totalIncome = summary.reduce((total, item) => total + item.income, 0);
+  const categories = totalIncome > 0
+    ? ranking
+        .filter((item) => item.operation_type === "income" && item.total_amount > 0 &&
+          availableCategories.includes(item.category))
+        .sort((first, second) => second.total_amount - first.total_amount)
+        .slice(0, 5)
+        .map((item) => ({
+          category: item.category,
+          totalIncome: item.total_amount,
+          percentage: item.total_amount / totalIncome * 100,
+        }))
+    : [];
+
+  return { businessType, totalIncome, categories };
+}
+
+export function getDateRangeError(
+  startDate: string,
+  endDate: string,
+  facets: MetricsFacets,
+): string | null {
+  for (const value of [startDate, endDate]) {
+    if (!value) continue;
+    const parsedDate = new Date(`${value}T00:00:00Z`);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+      Number.isNaN(parsedDate.getTime()) ||
+      parsedDate.toISOString().slice(0, 10) !== value
+    ) {
+      return "Introduce una fecha valida en formato YYYY-MM-DD.";
+    }
+    if (value < facets.min_date || value > facets.max_date) {
+      return "Las fechas deben estar dentro del rango disponible.";
+    }
+  }
+  if (startDate && endDate && startDate > endDate) {
+    return "Rango no valido: la fecha de inicio no puede ser posterior a la de fin.";
+  }
+  return null;
 }
 
 export function formatCurrency(value: number): string {
