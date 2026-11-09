@@ -1,5 +1,12 @@
 # Resumen del producto
 
+## Alertas de gasto
+
+- Debajo de los graficos se muestra una tabla mensual de alertas con gasto registrado, media de los tres meses calendario anteriores e incremento porcentual.
+- El usuario puede ajustar el umbral entre 0.1 y 1.0; el valor inicial es 0.3. Solo se alerta si el incremento supera estrictamente el umbral.
+- Los filtros de fecha limitan los movimientos del periodo consultado, sin recortar los meses completos de referencia. Los meses sin tres anteriores disponibles no se evaluan.
+- Si no hay alertas, se muestra el texto literal " No se encontraron anómalias materiales". Carga y error tienen estados diferenciados.
+
 ## Filtro de fechas
 
 - El dashboard permite seleccionar inicio y fin dentro del rango del dataset, visible junto a los inputs. Admite filtros parciales e incluye ambos extremos.

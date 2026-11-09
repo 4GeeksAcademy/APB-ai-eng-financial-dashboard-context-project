@@ -1,10 +1,17 @@
 import random
 from datetime import date
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.routes import filter_movements_by_date, generate_mock_movements
+from app.routes import (
+    FinancialMovement,
+    MetricsSummaryItem,
+    detect_outcome_alerts,
+    filter_movements_by_date,
+    generate_mock_movements,
+)
 
 
 client = TestClient(app)
@@ -207,3 +214,112 @@ def test_metrics_alerts_returns_anomaly_candidates():
             "baseline_average",
             "increase_ratio",
         }
+
+
+@pytest.fixture
+def alert_dataset(monkeypatch):
+    movements = [
+        FinancialMovement(
+            create_date=movement_date,
+            amount=amount,
+            operation_type="outcome",
+            category="operational",
+            business_type="B2B",
+        )
+        for movement_date, amount in [
+            (date(2025, 11, 15), 1000),
+            (date(2025, 12, 15), 90),
+            (date(2026, 1, 15), 100),
+            (date(2026, 2, 15), 110),
+            (date(2026, 3, 15), 140),
+        ]
+    ]
+    monkeypatch.setattr("app.routes.generate_mock_movements", lambda seed=None: movements)
+    return movements
+
+
+def test_metrics_alerts_uses_only_three_previous_months(alert_dataset):
+    response = client.get("/api/metrics/alerts")
+
+    assert response.status_code == 200
+    assert response.json() == [{
+        "period": "2026-03",
+        "outcome_total": 140.0,
+        "baseline_average": 100.0,
+        "increase_ratio": 0.4,
+    }]
+
+
+@pytest.mark.parametrize("dates", [
+    {"start_date": "2026-03-01", "end_date": "2026-03-31"},
+    {"start_date": "2026-03-01"},
+    {"end_date": "2026-03-31"},
+    {"start_date": "2026-03-15", "end_date": "2026-03-15"},
+])
+def test_metrics_alerts_keeps_reference_outside_date_filter(alert_dataset, dates):
+    response = client.get("/api/metrics/alerts", params=dates)
+
+    assert response.status_code == 200
+    assert response.json() == client.get("/api/metrics/alerts").json()
+
+
+def test_metrics_alerts_filters_target_movements_by_exact_dates(alert_dataset):
+    response = client.get("/api/metrics/alerts", params={"end_date": "2026-03-14"})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_metrics_alerts_requires_three_consecutive_previous_months(alert_dataset):
+    alert_dataset[:] = [
+        movement for movement in alert_dataset
+        if movement.create_date != date(2026, 1, 15)
+    ]
+
+    assert client.get("/api/metrics/alerts").json() == []
+
+
+def test_metrics_alerts_does_not_evaluate_first_three_months():
+    summary = [
+        MetricsSummaryItem(
+            period=f"2026-{month:02d}", income=0, outcome=amount, net=-amount
+        )
+        for month, amount in enumerate((90, 100, 140), 1)
+    ]
+
+    assert detect_outcome_alerts(summary, 0.1) == []
+
+
+@pytest.mark.parametrize("threshold, status", [
+    (0.09, 422), (0.1, 200), (0.3, 200), (1.0, 200), (1.01, 422),
+])
+def test_metrics_alerts_validates_threshold_limits(alert_dataset, threshold, status):
+    response = client.get("/api/metrics/alerts", params={"threshold": threshold})
+
+    assert response.status_code == status
+
+
+def test_metrics_alerts_default_and_changed_threshold(alert_dataset):
+    assert client.get("/api/metrics/alerts").json() == client.get(
+        "/api/metrics/alerts", params={"threshold": 0.3}
+    ).json()
+    assert client.get("/api/metrics/alerts", params={"threshold": 0.5}).json() == []
+
+
+def test_metrics_alerts_does_not_alert_when_increment_equals_threshold(alert_dataset):
+    alert_dataset[-1].amount = 130
+
+    assert client.get("/api/metrics/alerts", params={"threshold": 0.3}).json() == []
+
+
+@pytest.mark.parametrize("group_by, periods", [
+    ("day", ["2026-01-01", "2026-01-02"]),
+    ("week", ["2026-W01", "2026-W02"]),
+])
+def test_metrics_alerts_preserves_other_groupings(group_by, periods):
+    summary = [
+        MetricsSummaryItem(period=period, income=0, outcome=amount, net=-amount)
+        for period, amount in zip(periods, (100, 140))
+    ]
+
+    assert detect_outcome_alerts(summary, 0.3, group_by)[0].increase_ratio == 0.4

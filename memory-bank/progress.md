@@ -1,5 +1,12 @@
 # Estado del proyecto
 
+## Alertas de anomalias: implementacion y verificacion
+
+- T1-T7 completadas en `specs/002-anomaly-alerts/task.md`: media movil mensual, historial fuera del rango consultado, validacion de umbral, pruebas backend, tipo frontend, consulta cancelable y tabla con control numerico.
+- Verificacion ejecutada: 21 pruebas backend enfocadas en alertas y fechas y 6 pruebas frontend de calculos pasaron; lint y build correctos. Las 18 pruebas de alertas tambien pasaron durante T3. Advertencia existente de deprecacion de Starlette/httpx, sin fallos.
+- Verificacion adicional: renderizado estatico con cuatro encabezados exactos, importes, porcentaje, umbral y estados. API activa a traves del proxy contrastada contra el dataset: con umbral 0.1 devuelve 3 alertas historicas; los filtros parciales y completos conservan correctamente la referencia.
+- T8 pendiente de interaccion visual, cambios rapidos y presentacion responsive en navegador real: no hay navegador ni automatizacion instalados en el entorno. No se afirma verificacion visual completa.
+
 ## Filtro de fechas: implementacion y verificacion
 
 - T1-T6 completadas en `specs/001-date-search/task.md`: contrato facets, peticiones filtradas con cancelacion, inputs con limites, validacion, advertencia y periodo dinamico. Sin cambios backend ni dependencias nuevas.

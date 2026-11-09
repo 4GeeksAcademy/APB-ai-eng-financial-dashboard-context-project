@@ -1,11 +1,13 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { AnomalyAlertsTable } from "@/components/dashboard/anomaly-alerts-table";
 import { KPIRow } from "@/components/dashboard/kpi-row";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   type FinancialMovement,
   type KPIMetrics,
+  type MetricsAlert,
   type MetricsFacets,
   type MonthlyDataPoint,
 } from "@/lib/financial-types";
@@ -40,6 +42,29 @@ function fetchFinancialData(
         throw new Error(`Failed to fetch financial data: ${response.status}`);
       }
       return response.json() as Promise<FinancialMovement[]>;
+    },
+  );
+}
+
+function fetchFinancialAlerts(
+  startDate: string,
+  endDate: string,
+  threshold: number,
+  signal: AbortSignal,
+): Promise<MetricsAlert[]> {
+  const params = new URLSearchParams({
+    threshold: String(threshold),
+    group_by: "month",
+  });
+  if (startDate) params.set("start_date", startDate);
+  if (endDate) params.set("end_date", endDate);
+
+  return fetch(`${API_BASE_URL}/api/metrics/alerts?${params}`, { signal }).then(
+    (response) => {
+      if (!response.ok) {
+        throw new Error(`Failed to fetch alerts: ${response.status}`);
+      }
+      return response.json() as Promise<MetricsAlert[]>;
     },
   );
 }
@@ -91,6 +116,15 @@ function App() {
   const [facets, setFacets] = useState<MetricsFacets | null>(null);
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [period, setPeriod] = useState("");
+  const [alerts, setAlerts] = useState<MetricsAlert[]>([]);
+  const [threshold, setThreshold] = useState(0.3);
+  const [thresholdInput, setThresholdInput] = useState("0.3");
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
+  const numericThreshold = Number(thresholdInput);
+  const thresholdIsValid = thresholdInput.trim() !== "" &&
+    Number.isFinite(numericThreshold) && numericThreshold >= 0.1 && numericThreshold <= 1;
+  const thresholdError = thresholdIsValid ? null : "Introduce un umbral entre 0.1 y 1.0.";
   const dateError = facets
     ? getDateRangeError(dateRange.startDate, dateRange.endDate, facets)
     : null;
@@ -98,11 +132,24 @@ function App() {
   function handleDateChange(field: "startDate" | "endDate", value: string) {
     const nextRange = { ...dateRange, [field]: value };
     setDateRange(nextRange);
-    setLoading(
-      Boolean(facets) &&
-        !getDateRangeError(nextRange.startDate, nextRange.endDate, facets!),
-    );
+    const isValid = facets !== null &&
+      !getDateRangeError(nextRange.startDate, nextRange.endDate, facets);
+    setLoading(isValid);
+    setAlertsLoading(isValid);
     setError(null);
+    setAlertsError(null);
+  }
+
+  function handleThresholdChange(value: string) {
+    setThresholdInput(value);
+    const nextThreshold = Number(value);
+    if (
+      value.trim() === "" || !Number.isFinite(nextThreshold) ||
+      nextThreshold < 0.1 || nextThreshold > 1 || nextThreshold === threshold
+    ) return;
+    setThreshold(nextThreshold);
+    setAlertsLoading(Boolean(facets) && !dateError);
+    setAlertsError(null);
   }
 
   useEffect(() => {
@@ -163,6 +210,35 @@ function App() {
     };
   }, [dateRange, facets, dateError]);
 
+  useEffect(() => {
+    if (!facets || dateError) return;
+    let isActive = true;
+    const controller = new AbortController();
+
+    fetchFinancialAlerts(
+      dateRange.startDate,
+      dateRange.endDate,
+      threshold,
+      controller.signal,
+    )
+      .then((result) => {
+        if (!isActive) return;
+        setAlerts(result);
+        setAlertsError(null);
+      })
+      .catch(() => {
+        if (isActive) setAlertsError("No se pudieron cargar las alertas de gasto.");
+      })
+      .finally(() => {
+        if (isActive) setAlertsLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [dateRange, facets, dateError, threshold]);
+
   return (
     <>
       <p role="status" className="sr-only">
@@ -219,6 +295,15 @@ function App() {
                 <ProfitPercentChart data={monthlyData} loading={loading} />
               </Suspense>
             </section>
+
+            <AnomalyAlertsTable
+              alerts={alerts}
+              loading={alertsLoading}
+              error={alertsError ?? (!facets ? error : null)}
+              thresholdValue={thresholdInput}
+              thresholdError={thresholdError}
+              onThresholdChange={handleThresholdChange}
+            />
           </div>
         </div>
     </main>

@@ -244,12 +244,30 @@ def calculate_net_value(movements: list[FinancialMovement]) -> float:
 def detect_outcome_alerts(
     summary: list[MetricsSummaryItem],
     threshold: float,
+    group_by: GroupBy = "month",
+    reference_summary: list[MetricsSummaryItem] | None = None,
 ) -> list[MetricsAlert]:
     alerts: list[MetricsAlert] = []
     historical_outcomes: list[float] = []
+    reference_outcomes = {
+        item.period: item.outcome
+        for item in (reference_summary if reference_summary is not None else summary)
+    }
     for item in summary:
-        if historical_outcomes:
-            baseline = sum(historical_outcomes) / len(historical_outcomes)
+        previous_outcomes = historical_outcomes
+        if group_by == "month":
+            previous_outcomes = []
+            previous_month = date.fromisoformat(f"{item.period}-01")
+            for _ in range(3):
+                previous_month = previous_month.replace(day=1) - timedelta(days=1)
+                previous_period = previous_month.strftime("%Y-%m")
+                if previous_period not in reference_outcomes:
+                    break
+                previous_outcomes.append(reference_outcomes[previous_period])
+            if len(previous_outcomes) != 3:
+                continue
+        if previous_outcomes:
+            baseline = sum(previous_outcomes) / len(previous_outcomes)
             if baseline > 0:
                 increase_ratio = (item.outcome - baseline) / baseline
                 if increase_ratio > threshold:
@@ -366,7 +384,7 @@ def get_metrics_comparison(
 
 @router.get("/api/metrics/alerts", response_model=list[MetricsAlert])
 def get_metrics_alerts(
-    threshold: float = Query(default=0.3, ge=0),
+    threshold: float = Query(default=0.3, ge=0.1, le=1.0),
     group_by: GroupBy = Query(default="month"),
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
@@ -381,7 +399,10 @@ def get_metrics_alerts(
         movements, start_date, end_date, category=None, operation_type=None
     )
     summary = summarize_movements(filtered, group_by)
-    return detect_outcome_alerts(summary, threshold)
+    reference_summary = (
+        summarize_movements(movements, "month") if group_by == "month" else None
+    )
+    return detect_outcome_alerts(summary, threshold, group_by, reference_summary)
 
 
 @router.get("/api/metrics/b2b", response_model=list[FinancialMovement])

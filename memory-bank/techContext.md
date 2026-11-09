@@ -1,5 +1,12 @@
 # Contexto técnico
 
+## Integracion de alertas
+
+- `GET /api/metrics/alerts` mantiene su modelo de respuesta y valida `threshold` entre 0.1 y 1.0, con 0.3 por defecto. La agrupacion mensual usa tres meses calendario anteriores completos como referencia; las agrupaciones diaria y semanal conservan su calculo previo.
+- `App.tsx` solicita alertas por umbral y fechas validas de forma independiente de las metricas. Cancela peticiones obsoletas; valores de umbral fuera de rango no se aplican y fechas invalidas conservan los resultados.
+- `anomaly-alerts-table.tsx` presenta controles etiquetados, tabla semantica, estados de carga/error y ausencia de alertas. Reutiliza `formatCurrency` y `formatPercent`, convirtiendo el ratio recibido a porcentaje.
+- Sin dependencias ni frameworks nuevos. Los datos siguen siendo sinteticos y no persistidos.
+
 ## Stack
 
 - **Frontend:** React 19 y TypeScript 6 con Vite 8; Tailwind CSS, Recharts, Vitest y ESLint. Scripts y dependencias: [frontend/package.json](../frontend/package.json).
