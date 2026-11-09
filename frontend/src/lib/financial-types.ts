@@ -32,6 +32,31 @@ export interface KPIMetrics {
   profitPercent: number
 }
 
+export interface TopCategoryItem {
+  category: Category
+  operation_type: OperationType
+  total_amount: number
+}
+
+export interface MetricsSummaryItem {
+  period: string
+  income: number
+  outcome: number
+  net: number
+}
+
+export interface IncomeCategoryRow {
+  category: Category
+  totalIncome: number
+  percentage: number
+}
+
+export interface BusinessComparison {
+  businessType: BusinessType
+  totalIncome: number
+  categories: IncomeCategoryRow[]
+}
+
 export interface MonthlyDataPoint {
   month: string
   income: number

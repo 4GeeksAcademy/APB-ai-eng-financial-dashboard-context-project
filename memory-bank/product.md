@@ -1,5 +1,12 @@
 # Resumen del producto
 
+## Comparativa B2B vs B2C
+
+- Una vista accesible desde la navegacion del dashboard muestra dos tablas, B2B y B2C, con hasta cinco categorias con ingresos, ordenadas por importe. Cada fila incluye categoria, ingreso y porcentaje sobre el total completo de su grupo.
+- Un unico grafico inferior compara los ingresos completos de ambas lineas. Sin ingresos, el grupo tiene total cero y su tabla no contiene filas artificiales.
+- La comparativa inicia con fechas vacias e independientes del dashboard principal. Admite historico, filtros parciales y extremos inclusivos; conserva resultados ante un rango invertido.
+- Las categorias proceden de facetas filtradas por negocio, ingreso y periodo. El dashboard principal permanece montado al cambiar de vista; su conservacion de estado se reviso en codigo, no en navegador.
+
 ## Alertas de gasto
 
 - Debajo de los graficos se muestra una tabla mensual de alertas con gasto registrado, media de los tres meses calendario anteriores e incremento porcentual.

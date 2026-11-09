@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { ChartColumn, LayoutDashboard } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { AnomalyAlertsTable } from "@/components/dashboard/anomaly-alerts-table";
+import { BusinessComparisonPage } from "@/components/dashboard/business-comparison-page";
 import { KPIRow } from "@/components/dashboard/kpi-row";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,7 +13,7 @@ import {
   type MetricsFacets,
   type MonthlyDataPoint,
 } from "@/lib/financial-types";
-import { computeFinancialDashboard } from "@/lib/financial-utils";
+import { computeFinancialDashboard, getDateRangeError } from "@/lib/financial-utils";
 
 const IncomeOutcomeChart = lazy(() =>
   import("@/components/dashboard/income-outcome-chart").then((module) => ({
@@ -69,31 +71,6 @@ function fetchFinancialAlerts(
   );
 }
 
-function getDateRangeError(
-  startDate: string,
-  endDate: string,
-  facets: MetricsFacets,
-): string | null {
-  for (const value of [startDate, endDate]) {
-    if (!value) continue;
-    const parsedDate = new Date(`${value}T00:00:00Z`);
-    if (
-      !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
-      Number.isNaN(parsedDate.getTime()) ||
-      parsedDate.toISOString().slice(0, 10) !== value
-    ) {
-      return "Introduce una fecha valida en formato YYYY-MM-DD.";
-    }
-    if (value < facets.min_date || value > facets.max_date) {
-      return "Las fechas deben estar dentro del rango disponible.";
-    }
-  }
-  if (startDate && endDate && startDate > endDate) {
-    return "Rango no valido: la fecha de inicio no puede ser posterior a la de fin.";
-  }
-  return null;
-}
-
 function ChartLoadingFallback() {
   return (
     <Card className="border-border/60">
@@ -109,6 +86,7 @@ function ChartLoadingFallback() {
 }
 
 function App() {
+  const [view, setView] = useState<"dashboard" | "comparison">("dashboard");
   const [metrics, setMetrics] = useState<KPIMetrics | null>(null);
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -245,11 +223,31 @@ function App() {
         {loading ? "Loading financial data" : ""}
       </p>
       <main
-        aria-busy={loading}
+        aria-busy={view === "dashboard" && loading}
         className="dark min-h-screen bg-background text-foreground"
       >
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-8">
+            <nav aria-label="Vistas del dashboard" className="flex flex-wrap gap-2 border-b border-border pb-3">
+              <button
+                type="button"
+                aria-pressed={view === "dashboard"}
+                onClick={() => setView("dashboard")}
+                className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm aria-pressed:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <LayoutDashboard size={16} aria-hidden="true" /> Dashboard
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "comparison"}
+                onClick={() => setView("comparison")}
+                className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm aria-pressed:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <ChartColumn size={16} aria-hidden="true" /> B2B vs B2C
+              </button>
+            </nav>
+            <div hidden={view !== "dashboard"}>
+              <div className="flex flex-col gap-8">
             <DashboardHeader
               period={period}
               startDate={dateRange.startDate}
@@ -304,6 +302,11 @@ function App() {
               thresholdError={thresholdError}
               onThresholdChange={handleThresholdChange}
             />
+              </div>
+            </div>
+            {view === "comparison" ? (
+              <BusinessComparisonPage facets={facets} facetsError={!facets ? error : null} />
+            ) : null}
           </div>
         </div>
     </main>

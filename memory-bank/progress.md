@@ -1,5 +1,13 @@
 # Estado del proyecto
 
+## Comparativa B2B vs B2C: implementacion y verificacion
+
+- T1-T7 completadas en `specs/003-comparative-B2B-B2C/task.md`: facetas filtrables compatibles, pruebas backend, tipos/calculos, navegacion, fechas independientes, consultas cancelables, tablas y grafico Recharts.
+- Verificacion ejecutada: 15 pruebas backend enfocadas y 22 pruebas frontend pasaron; lint y build correctos. Las 13 pruebas de T2 tambien pasaron durante la implementacion. Sin dependencias nuevas.
+- El helper frontend real se contrasto con la API activa y los movimientos del dataset para historico, solo inicio, solo fin y rango completo: totales, categorias y porcentajes coinciden por grupo. Tambien se verificaron grupo sin ingresos y cancelacion.
+- El renderizado estatico confirma tablas, porcentajes, total cero sin filas artificiales y controles de fecha sin IDs duplicados entre vistas.
+- T8 pendiente de navegador real: no se verificaron interaccion, navegacion, conservacion de estado al volver, grafico ni presentacion responsive. No hay navegador ni automatizacion instalados; la integracion y conservacion del estado se revisaron en codigo.
+
 ## Alertas de anomalias: implementacion y verificacion
 
 - T1-T7 completadas en `specs/002-anomaly-alerts/task.md`: media movil mensual, historial fuera del rango consultado, validacion de umbral, pruebas backend, tipo frontend, consulta cancelable y tabla con control numerico.

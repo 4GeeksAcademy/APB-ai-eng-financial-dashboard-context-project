@@ -1,5 +1,13 @@
 # Contexto técnico
 
+## Integracion de comparativa
+
+- `/api/metrics/facets` admite `business_type`, `operation_type`, `start_date` y `end_date` opcionales. Filtra opciones por esos parametros y conserva `min_date`/`max_date` globales, incluso con categorias vacias. La respuesta sin filtros mantiene el contrato anterior.
+- La comparativa reutiliza `/categories/top?operation_type=income&limit=5` y `/summary` por grupo. Ejecuta las seis consultas en paralelo con cancelacion y actualiza ambos grupos juntos.
+- `computeBusinessComparison` calcula porcentajes sobre todos los ingresos del resumen, no sobre las filas visibles. `getDateRangeError` se comparte con el dashboard sin cambiar su comportamiento.
+- La navegacion usa estado React; no se introdujo router ni dependencias. El dashboard permanece montado y oculto durante la comparativa; esta mantiene sus propias fechas. La cabecera admite titulo, subtitulo y prefijo de IDs.
+- Componentes nuevos: `business-comparison-page.tsx`, `business-income-table.tsx` y `business-income-chart.tsx`. El grafico usa Recharts y los formateadores existentes.
+
 ## Integracion de alertas
 
 - `GET /api/metrics/alerts` mantiene su modelo de respuesta y valida `threshold` entre 0.1 y 1.0, con 0.3 por defecto. La agrupacion mensual usa tres meses calendario anteriores completos como referencia; las agrupaciones diaria y semanal conservan su calculo previo.

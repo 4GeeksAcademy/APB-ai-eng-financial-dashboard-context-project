@@ -303,9 +303,23 @@ def get_metrics(
 
 
 @router.get("/api/metrics/facets", response_model=MetricsFacets)
-def get_metrics_facets() -> MetricsFacets:
+def get_metrics_facets(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    operation_type: OperationType | None = Query(default=None),
+    business_type: BusinessType | None = Query(default=None),
+) -> MetricsFacets:
     movements = generate_mock_movements(seed=42)
-    return build_metrics_facets(movements)
+    facets = build_metrics_facets(movements)
+    filtered = filter_movements(
+        movements, start_date, end_date, category=None, operation_type=operation_type
+    )
+    if business_type is not None:
+        filtered = [item for item in filtered if item.business_type == business_type]
+    facets.operation_types = sorted({item.operation_type for item in filtered})
+    facets.business_types = sorted({item.business_type for item in filtered})
+    facets.categories = sorted({item.category for item in filtered})
+    return facets
 
 
 @router.get("/api/metrics/summary", response_model=list[MetricsSummaryItem])
